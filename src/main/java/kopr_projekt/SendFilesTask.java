@@ -4,8 +4,9 @@ import java.io.*;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.Date;
+import java.util.concurrent.Callable;
 
-public class SendFilesTask implements Runnable {
+public class SendFilesTask implements Callable<Void> {
     private Socket socket;
 
     boolean run = true;
@@ -14,14 +15,15 @@ public class SendFilesTask implements Runnable {
         this.socket = socket;
     }
 
+
     @Override
-    public void run() {
-        while (run){
+    public Void call() throws Exception {
+        while (true){
             sendFile();
         }
     }
 
-    private void sendFile(){
+    private void sendFile() throws SocketException {
         String filepath = null;
         int offset = 0;
         try {
@@ -31,7 +33,6 @@ public class SendFilesTask implements Runnable {
 
         } catch (IOException e) {
 //            e.printStackTrace();
-            run = false;
             return;
         }
 
@@ -63,12 +64,12 @@ public class SendFilesTask implements Runnable {
                 sended += (count = in.read(bytes, 0, Config.PART_SIZE));
                 out.write(bytes, 0, count);
             }
-        } catch (SocketException e) {
-            e.printStackTrace();
-            System.err.println("socket closed");
-            return;
         } catch (IOException e) {
-            e.printStackTrace();
+//            e.printStackTrace();
+            System.out.println("\tstopped sending file:   " + filepath +
+                    "\n\t\tTotal time " + (new Date().getTime() - startTime)/1000 +
+                    "\n\t\tsended: " + sended + " / " +length);
+            throw new SocketException();
         }
 
         System.out.println("\tEnd sending file:   " + filepath +

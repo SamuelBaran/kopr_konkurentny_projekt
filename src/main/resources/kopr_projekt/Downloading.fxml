@@ -18,8 +18,9 @@
       <Label layoutX="32.0" layoutY="50.0" text="Downloaded count of files:" />
       <Label layoutX="32.0" layoutY="100.0" text="Downloaded amount:" />
       <Button fx:id="pauseButton" layoutX="32.0" layoutY="150.0" mnemonicParsing="false" onAction="#pauseButtonClick" text="Pause" />
-      <Button fx:id="continueButton" layoutX="90.0" layoutY="150.0" mnemonicParsing="false" onAction="#continueButtonClick" text="Continue" visible="false" />
-      <Label fx:id="fileCountProgressLabel" layoutX="227.0" layoutY="50.0" prefHeight="17.0" prefWidth="243.0" text="11111/11" />
-      <Label fx:id="dataAmountProgressLabel" layoutX="227.0" layoutY="100.0" prefHeight="17.0" prefWidth="243.0" text="Label" textAlignment="RIGHT" />
+      <Button fx:id="continueButton" layoutX="90.0" layoutY="150.0" mnemonicParsing="false" onAction="#continueButtonClick" text="Continue" />
+      <Label fx:id="fileCountProgressLabel" layoutX="227.0" layoutY="50.0" prefHeight="17.0" prefWidth="243.0" text="0/0" />
+      <Label fx:id="dataAmountProgressLabel" layoutX="227.0" layoutY="100.0" prefHeight="17.0" prefWidth="243.0" text="0/0" textAlignment="RIGHT" />
+      <Button fx:id="downloadAnotherButton" layoutX="305.0" layoutY="150.0" mnemonicParsing="false" onAction="#downloadAnotherButtonClick" text="Download another directory" />
    </children>
 </AnchorPane>

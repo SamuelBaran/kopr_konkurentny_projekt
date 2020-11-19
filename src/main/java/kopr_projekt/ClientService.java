@@ -1,172 +1,154 @@
 package kopr_projekt;
 
 
+import javafx.application.Platform;
+import javafx.beans.InvalidationListener;
 import javafx.beans.property.*;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.concurrent.Service;
 import javafx.concurrent.Task;
+import javafx.concurrent.WorkerStateEvent;
 
 import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 
-public class ClientService<Void> extends Service<Void> {
-
-//    StringProperty sourcePathProperty;
-//    StringProperty destinationPathProperty;
-//    IntegerProperty socketCountProperty;
-    public IntegerProperty doneProperty;
+public class ClientService extends Service<ProgressData> {
 
     private String sourcePath;
     private String destinationPath;
     private int socketCount;
     private Map<String, FileInfo> files = new HashMap<>();
+    private AtomicLong downloadedBytes;
+
 
     public ClientService(String sourcePath, String destinationPath, int socketCount) {
         this.sourcePath = sourcePath;
         this.destinationPath = destinationPath;
         this.socketCount = socketCount;
-
-
-        doneProperty = new SimpleIntegerProperty();
-
-//        NIEKDE VOLAT:
-//        doneProperty.addListener(new ChangeListener<Long>() {
-//                                 @Override
-//                                 public void changed(ObservableValue<? extends Long> observable, Long oldValue, Long newValue) {
-//                                     updateTitle("0/100");
-//                                 };
-//                             });
-
-
+//        this.downloadedBytes = new AtomicLong(0);
     }
 
 
-
-    //    _______________________________________
-
     @Override
-    protected Task<Void> createTask() {
-        return new Task<Void>() {
+    protected Task<ProgressData> createTask() {
+        return new Task<ProgressData>() {
 
             private long totalSize = 0;
             private BlockingQueue<Socket> sockets = new LinkedBlockingQueue<>();
             private ExecutorService executor;
+            private ProgressData progressData;
 
 
             @Override
-            protected Void call() throws Exception {
-//                for (int i = 0; i <= 10; i++) {
-//                    updateTitle(i + "/" + 10);
-//                    Thread.sleep(500);
-//                }
-
-
-                System.out.println("INIT\n" + files);
+            protected ProgressData call() throws Exception {
+                                    System.out.println("INIT\n" + files);
                 init();
-                System.out.println("\nDOWNLOAD\n" + files);
+                                    System.out.println("\nDOWNLOAD\n" + files);
                 startDownloading();
-                System.out.println(files);
+                                    System.out.println(files);
                 return null;
             }
 
-//            private void getInfoFromGui() throws Exception{
-//                CountDownLatch latch = new CountDownLatch(3);
-//
-//                // potrebujem textArea resp aspon textProperty
-//                Platform.runLater(new Runnable() {
-//                    @Override
-//                    public void run() {
-//                        sourcePath = sourcePathProperty.getValue();
-//                        latch.countDown();
-//                    }
-//                });
-//
-//                Platform.runLater(new Runnable() {
-//                    @Override
-//                    public void run() {
-//                        destinationPath = destinationPathProperty.getValue();
-//                        latch.countDown();
-//                    }
-//                });
-//
-//                Platform.runLater(new Runnable() {
-//                    @Override
-//                    public void run() {
-//                        socketCount = socketCountProperty.getValue();
-//                        latch.countDown();
-//                    }
-//                });
-//
-//                // cakam na uvolnenie
-//                latch.await();
-//            }
-
-            private void init() {
+            private void init() throws IOException {
+                //          POSIELAM DIR A POCET SOCKETOV
                 PrintWriter out_pw = null;
                 BufferedReader in_br = null;
-                try {
-                    Socket socket = new Socket(Config.SERVER_IP, Config.SERVER_PORT);
-                    out_pw = new PrintWriter(socket.getOutputStream(), true);
-                    in_br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+
+//                try {
+                Socket socket = new Socket(Config.SERVER_IP, Config.SERVER_PORT);
+                System.err.println(socket.isBound());
+
+                out_pw = new PrintWriter(socket.getOutputStream(), true);
+                in_br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+//                }
+//                catch (IOException e) {
+//                    e.printStackTrace();
+//                }
 
                 out_pw.println(sourcePath);
                 out_pw.println(socketCount);
 
+
+
+                //       PRIJIMANIE INFO O FILEOCH
                 String filePath;
                 long fileSize;
+                downloadedBytes = new AtomicLong(0);
+                long downloadedFiles = 0;
                 try {
                     while ((filePath = in_br.readLine()) != null) {
                         fileSize = Long.parseLong(in_br.readLine());
+
+                        // Celkova velkost
                         totalSize += fileSize;
-                       if (!files.keySet().contains(filePath))
-                            files.put(filePath, new FileInfo(filePath, createFullPath(filePath), 0L, fileSize) );
+
+                        // ak nemam pridam
+                        if (!files.keySet().contains(filePath)){
+                            File f = new File(createFullPath(filePath));
+                            long downloadedAmount = f.exists() ? f.length() : 0;
+                            files.put(filePath, new FileInfo(filePath, createFullPath(filePath), downloadedAmount, fileSize) );
+                        }
+
+                        // na init value ProgressData
+                        long downloadedBytesForFile = files.get(filePath).getDownloadedAmount();
+                        downloadedBytes.getAndAdd(downloadedBytesForFile);
+                        if(downloadedBytesForFile == fileSize)
+                            downloadedFiles++;
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+                progressData = new ProgressData(downloadedFiles, files.size(), downloadedBytes.get(), totalSize);
            }
 
-            public void startDownloading(){
+            public void startDownloading() throws Exception {
                 createSockets();
                 int downloadedFiles = 0;
+
+                var exe = Executors.newScheduledThreadPool(1);
+                exe.scheduleAtFixedRate(
+                        ()->{
+                            progressData.getByteAmountProgress().setDownloaded(downloadedBytes.get());
+                            updateValue(progressData.copy());
+                        },
+                        0,
+                        100,
+                        TimeUnit.MILLISECONDS
+                        );
+
 
                 executor = Executors.newFixedThreadPool(socketCount);
                 CompletionService<Object> completionService = new ExecutorCompletionService<>(executor);
 
-
                 for(String file: files.keySet()){
                     if( ! files.get(file).downloadingDone()){
-                        DownloadFileTask task = new DownloadFileTask(sockets, files.get(file));
-//                        DownloadFileTask task = new DownloadFileTask(sockets, file, createFullPath(file), downloadedAmount.get(file), sizes.get(file));
+                        DownloadFileTask task = new DownloadFileTask(sockets, files.get(file), downloadedBytes);
                         completionService.submit(task);
                     } else {
                         downloadedFiles++;
                     }
                 }
 
-
-
                 int allFiles = files.size();
-                updateMessage(downloadedFiles + "/" + allFiles);
-
                 for(; downloadedFiles < allFiles; downloadedFiles++) {
                     try {
-                        completionService.take();
+                        completionService.take().get();
                         System.out.println("====== progres ====== " + (downloadedFiles + 1) + "/" + allFiles);
-//                        updateProgress(downloadedFiles + 1, allFiles);
-                        updateMessage((downloadedFiles+1) + "/" + allFiles);
+                        progressData.getFileAmountProgress().addToDownloaded(1);
+                        updateValue(progressData.copy());
                     } catch (InterruptedException e) {
 //                        e.printStackTrace();
                         executor.shutdownNow();
+                        exe.shutdownNow();
 
                         //TODO: treba???
                         try {
@@ -175,11 +157,31 @@ public class ClientService<Void> extends Service<Void> {
 
                         System.err.println("Zastavene");
                         break;
+                    } catch (ExecutionException e) {
+                        // server zomrel
+                        if (e.getCause() instanceof SocketClosedException){
+//                            e.getCause().printStackTrace();
+                            throw new SocketClosedException();
+//                            return;
+                        }
                     }
                 }
 
+                progressData.getByteAmountProgress().setDownloaded(downloadedBytes.get());
+                updateValue(progressData.copy());
                 executor.shutdown();
+                exe.shutdown();
                 System.out.println("Downloading ended");
+
+                // upraacem sockety
+                for (int i = 0; i < sockets.size(); i++) {
+                    try {
+                        System.out.println("closing socket pool");
+                        sockets.poll().close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
             }
 
             private void createSockets(){
@@ -204,6 +206,7 @@ public class ClientService<Void> extends Service<Void> {
                                     .getPath().replace('/', '\\');
                 return fullDestPath.toString() + "\\" + relative;
             }
+
         };
     }
 }

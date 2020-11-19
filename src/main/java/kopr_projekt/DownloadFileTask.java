@@ -1,48 +1,28 @@
 package kopr_projekt;
 
+import javafx.beans.property.LongProperty;
+
 import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicLong;
 
-public class DownloadFileTask implements Callable<Object> {
+public class DownloadFileTask<Void> implements Callable<Void> {
 
     private BlockingQueue<Socket> sockets;
-    private String filename;
-    private String fullDestinationFilePath;
-    private long offset;
-    private long size;
     private FileInfo file;
+    private AtomicLong downloadedBytes;
 
-    public DownloadFileTask(BlockingQueue<Socket> sockets, String filename, String fullDestinationFilePath, long offset, long size) {
-        this.sockets = sockets;
-        this.filename = filename;
-        this.fullDestinationFilePath = fullDestinationFilePath;
-        this.offset = offset;
-        this.size = size;
-    }
-
-    public DownloadFileTask(BlockingQueue<Socket> sockets, String filename, String fullDestinationFilePath, long size) {
-        this.sockets = sockets;
-        this.filename = filename;
-        this.fullDestinationFilePath = fullDestinationFilePath;
-        this.size = size;
-    }
-
-    public DownloadFileTask(BlockingQueue<Socket> sockets, FileInfo fileInfo) {
+    public DownloadFileTask(BlockingQueue<Socket> sockets, FileInfo fileInfo, AtomicLong downloadedBytes) {
         this.sockets = sockets;
         this.file = fileInfo;
-
-        // ???
-        this.filename = fileInfo.getFilepath();
-        this.fullDestinationFilePath = fileInfo.getFullDestinationPath();
-        this.offset = fileInfo.getDownloadedAmount();
-        this.size = fileInfo.getFileSize();
+        this.downloadedBytes = downloadedBytes;
     }
 
-
     @Override
-    public Object call() throws Exception {
+    public Void call() throws Exception {
         Socket socket = sockets.poll();
 
         InputStream in;
@@ -50,41 +30,44 @@ public class DownloadFileTask implements Callable<Object> {
 
         try {
             PrintWriter out_pw = new PrintWriter(socket.getOutputStream(), true);
-            out_pw.println(filename);
-            out_pw.println(offset);
+            out_pw.println(file.getFilepath());
+            out_pw.println(file.getDownloadedAmount());
 
-            File file = null;
+            File f = null;
             synchronized (sockets) {
-                String file_s = (file = new File(fullDestinationFilePath)).getParent();
+                String file_s = (f = new File(file.getFullDestinationPath())).getParent();
                 new File(file_s).mkdirs();
             }
 
             in = socket.getInputStream();
-            out = ((offset == 0) ? new FileOutputStream(file) : new FileOutputStream(file, true));
-
+            out = ((file.getDownloadedAmount() == 0) ? new FileOutputStream(f) : new FileOutputStream(f, true));
 
 
             int count;
-            int sum = (int)offset;
+            long sum = file.getDownloadedAmount();
             byte[] bytes = new byte[Config.PART_SIZE];
 
 
 
             while (!Thread.currentThread().isInterrupted() &&
                     (count = in.read(bytes, 0, Config.PART_SIZE)) > 0){
-//                if (Thread.currentThread().isInterrupted()){
-//                    socket.close();
-//                }
-
                 out.write(bytes, 0, count);
                 this.file.increaseDownloadedAmount(count);
-                if((sum += count) == size)
+                downloadedBytes.getAndAdd(count);
+                if((sum += count) == file.getFileSize())
                     break;
             }
         } catch (IOException e) {
-            e.printStackTrace();
+//            e.printStackTrace();
+            System.err.println("Connection lost.");
+            throw new SocketClosedException();
         }
 
+        if (Thread.currentThread().isInterrupted()){
+            System.out.println("closing socket");
+            socket.close();
+            return null;
+        }
 
         sockets.offer(socket);
         return null;

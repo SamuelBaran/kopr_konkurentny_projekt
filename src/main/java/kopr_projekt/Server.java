@@ -6,8 +6,9 @@ import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.*;
 
 public class Server {
     private ServerSocket serverSocket;
@@ -38,8 +39,6 @@ public class Server {
                         Integer.MAX_VALUE,
                         (filePath, fileAttr) -> fileAttr.isRegularFile()
             ).forEach((Path path) -> {
-                System.out.println(path);
-
                     out_pw.println(path.toString());
                     try {
                         out_pw.println(Files.size(path));
@@ -55,22 +54,42 @@ public class Server {
 
     public void run(){
         executor = Executors.newFixedThreadPool(socketCount);
-
+        CompletionService<Void> completionService = new ExecutorCompletionService<>(executor);
+        List<Future<Void>> futures = new ArrayList<>();
         for (int i = 0; i < socketCount; i++) {
             try {
                 Socket s = serverSocket.accept();
-                executor.execute(new SendFilesTask(s));
+                futures.add(completionService.submit(new SendFilesTask(s)));
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        }
+        for (int i = 0; i < socketCount; i++) {
+            try {
+                completionService.take().get();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }catch (ExecutionException e) {
+                System.err.println("Vypinam");
+                executor.shutdownNow();
+                break;
+           }
+        }
+
+        try {
+            executor.awaitTermination(1, TimeUnit.DAYS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
     }
 
     public static void main(String[] args) throws IOException {
         Server server = new Server();
-        server.init();
-        server.run();
-
+        while(true){
+            System.out.println("___________________________________________________________________________________");
+            System.out.println("new Connection");
+            server.init();
+            server.run();
+        }
     }
-
 }
