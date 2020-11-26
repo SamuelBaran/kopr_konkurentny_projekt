@@ -1,10 +1,7 @@
 package kopr_projekt;
 
-import javafx.beans.property.LongProperty;
-
 import java.io.*;
 import java.net.Socket;
-import java.net.SocketException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
@@ -33,9 +30,9 @@ public class DownloadFileTask<Void> implements Callable<Void> {
             out_pw.println(file.getFilepath());
             out_pw.println(file.getDownloadedAmount());
 
-            File f = null;
+            File f = new File(file.getFullDestinationPath());
+            String file_s = f.getParent();
             synchronized (sockets) {
-                String file_s = (f = new File(file.getFullDestinationPath())).getParent();
                 new File(file_s).mkdirs();
             }
 
@@ -47,18 +44,17 @@ public class DownloadFileTask<Void> implements Callable<Void> {
             long sum = file.getDownloadedAmount();
             byte[] bytes = new byte[Config.PART_SIZE];
 
-
-
             while (!Thread.currentThread().isInterrupted() &&
                     (count = in.read(bytes, 0, Config.PART_SIZE)) > 0){
                 out.write(bytes, 0, count);
                 this.file.increaseDownloadedAmount(count);
                 downloadedBytes.getAndAdd(count);
-                if((sum += count) == file.getFileSize())
-                    break;
+                if((sum += count) == file.getFileSize()) {
+                    sockets.offer(socket);
+                    return null;
+                }
             }
         } catch (IOException e) {
-//            e.printStackTrace();
             System.err.println("Connection lost.");
             throw new SocketClosedException();
         }
@@ -69,7 +65,6 @@ public class DownloadFileTask<Void> implements Callable<Void> {
             return null;
         }
 
-        sockets.offer(socket);
         return null;
     }
 }

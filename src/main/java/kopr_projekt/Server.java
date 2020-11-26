@@ -55,6 +55,7 @@ public class Server {
     public void run(){
         executor = Executors.newFixedThreadPool(socketCount);
         CompletionService<Void> completionService = new ExecutorCompletionService<>(executor);
+
         List<Future<Void>> futures = new ArrayList<>();
         for (int i = 0; i < socketCount; i++) {
             try {
@@ -64,13 +65,14 @@ public class Server {
                 e.printStackTrace();
             }
         }
+
         for (int i = 0; i < socketCount; i++) {
             try {
                 completionService.take().get();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }catch (ExecutionException e) {
-                System.err.println("Vypinam");
+                System.out.println("Vypinam");
                 executor.shutdownNow();
                 break;
            }

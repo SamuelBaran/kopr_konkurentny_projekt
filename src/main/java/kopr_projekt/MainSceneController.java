@@ -13,7 +13,6 @@ import javafx.stage.Stage;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class MainSceneController {
@@ -26,8 +25,6 @@ public class MainSceneController {
 
     @FXML
     void initialize() {
-//        destinationFolderTextField.setText("C:\\Users\\PC\\Desktop\\dristy\\backup\\");
-//        sourceFolderTextField.setText("C:\\Users\\PC\\Desktop\\dristy\\ok\\");
         destinationFolderTextField.setText("dir1\\");
         sourceFolderTextField.setText("dir\\");
         socketNumberTextField.setText("2");

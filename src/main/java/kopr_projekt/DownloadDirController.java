@@ -1,8 +1,6 @@
 package kopr_projekt;
 
 
-import javafx.concurrent.Service;
-import javafx.concurrent.Worker;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
@@ -11,9 +9,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
 import javafx.stage.Stage;
 
-import java.beans.EventHandler;
 import java.net.ConnectException;
-import java.util.Arrays;
 
 
 public class DownloadDirController {
@@ -56,6 +52,7 @@ public class DownloadDirController {
         service.valueProperty().addListener( (ob, oldV, progressData) -> {
             if (progressData == null)
                 return;
+
             Progress bytes = progressData.getByteAmountProgress();
             dataAmountProgressLabel.setText(bytes.toString());
             dataAmountProgressBar.progressProperty().setValue(bytes.getProgressValue());
@@ -97,14 +94,6 @@ public class DownloadDirController {
         service.start();
     }
 
-    private double stringToProgress(String s){
-        // https://stackoverflow.com/questions/6881458/converting-a-string-array-into-an-int-array-in-java
-        if (s.equals("") )
-            return 0;
-        long[] val = Arrays.stream(s.replace(" ", "").split("/")).mapToLong(Long::parseLong).toArray();
-        return ((double)val[0]) / val[1];
-    }
-    
     @FXML
     void pauseButtonClick(ActionEvent event) {
         service.cancel();

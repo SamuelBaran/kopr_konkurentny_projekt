@@ -9,12 +9,10 @@ import java.util.concurrent.Callable;
 public class SendFilesTask implements Callable<Void> {
     private Socket socket;
 
-    boolean run = true;
 
     public SendFilesTask(Socket socket) {
         this.socket = socket;
     }
-
 
     @Override
     public Void call() throws Exception {
@@ -32,7 +30,6 @@ public class SendFilesTask implements Callable<Void> {
             offset = Integer.parseInt(in_br.readLine().trim());
 
         } catch (IOException e) {
-//            e.printStackTrace();
             return;
         }
 
@@ -65,7 +62,6 @@ public class SendFilesTask implements Callable<Void> {
                 out.write(bytes, 0, count);
             }
         } catch (IOException e) {
-//            e.printStackTrace();
             System.out.println("\tstopped sending file:   " + filepath +
                     "\n\t\tTotal time " + (new Date().getTime() - startTime)/1000 +
                     "\n\t\tsended: " + sended + " / " +length);
